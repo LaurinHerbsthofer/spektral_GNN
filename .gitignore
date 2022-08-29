@@ -27,3 +27,9 @@ logs/
 
 .vscode
 .DS_Store
+
+# pycharm
+.idea/
+
+# temporary files
+*.tmp
