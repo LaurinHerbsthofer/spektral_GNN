@@ -52,9 +52,10 @@ with open('settings.yaml') as file:
         load_n_rows = None
         n_classes = None
 
-
+t00 = time.time()
 if os.path.exists(settings['tmpGraphDataFile_tr_va']) and os.path.exists(settings['tmpGraphDataFile_te']) and always_load_data_anew is False:
     print("Loading graph data set from file ...")
+    data_existed = True
     try:
         data_tr_va = pickle.load(open(settings['tmpGraphDataFile_tr_va'], "rb"))
         print(" > Loaded {} training/validation samples.".format(len(data_tr_va)))
@@ -64,6 +65,7 @@ if os.path.exists(settings['tmpGraphDataFile_tr_va']) and os.path.exists(setting
         assert False, "You might need to rebuild your graph data (delete the tmp file), possibly due to using a different python environment."
 else:
     print("Creating graph data set ...")
+    data_existed = False
     # delete the tempoprary graph data file if you want to load new data
     # data = MyDataset2(1300, n_min=2000, n_max=3000, transforms=NormalizeAdj(), n_colors=6, knn=5, max_edge_length=0.4)
     data_tr_va = cellGraphDataset(metadatafile=settings['metadata_train'],
@@ -114,6 +116,10 @@ labelcounts_te = {}
 for la in np.unique(data_te.labels):
     labelcounts_te[la] = data_te.labels.count(la)
 print("Label counts test:", labelcounts_te)
+
+t11 = time.time()
+datapreptime = t11 - t00
+print("Data preparation took: {:.3f}".format(datapreptime))
 
 ################################################################################
 # Build model
@@ -227,6 +233,8 @@ print("Done. Test loss: {:.3f}. Test acc: {:.3f}. Test balacc: {:.3f}".format(te
 ################################################################################
 # Save results
 ################################################################################
+history['total_datapreptime'] = datapreptime
+history['data_existed'] = data_existed
 history['total_trainingtime'] = "{:.3f}".format(t11-t00)
 history['best_val_loss'] = val_loss
 history['best_val_acc'] = val_acc
@@ -236,3 +244,7 @@ history['best_test_acc'] = test_acc
 history['best_test_balacc'] = test_balacc
 with open(os.path.join(outfolder, "history.txt"), "w") as file:
     file.write(json.dumps(history))
+pickle.dump(best_weights, open(os.path.join(outfolder, "best_model_weights.pickle"), "wb"))
+
+print("+++++++++\nAll done.\n+++++++++")
+
