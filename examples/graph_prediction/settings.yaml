@@ -1,0 +1,57 @@
+# settings for cell_graph_GNN.py
+
+developmentrun: True
+outfolder: '/media/data1/DATA/GNN_EXPERIMENTS'
+tmpGraphDataFile_tr_va: "/media/data1/DATA/GNN_EXPERIMENTS/graphdata_tr_va.tmp"
+tmpGraphDataFile_te: "/media/data1/DATA/GNN_EXPERIMENTS/graphdata_te.tmp"
+
+learning_rate: 0.01  # Learning rate
+epochs: 400  # Number of training epochs
+es_patience: 10  # Patience for early stopping
+batch_size: 32  # Batch size
+
+micronsPerPixel: 0.50171
+colList: [
+    "Entire Cell CD3 (Opal 520) Mean",
+    "Entire Cell PD-L1 (Opal 540) Mean",
+    "Entire Cell CD8 (Opal 570) Mean",
+    "Entire Cell FoxP3 (Opal 620) Mean",
+    "Entire Cell CD45Ro (Opal 650) Mean",
+    "Entire Cell Her2 (Opal 690) Mean",
+    # "Entire Cell DAPI (DAPI) Mean",
+    # "Nucleus Area (sq microns)",  # norm to 100 sq microns
+    # "Entire Cell Area (sq microns)",  # norm to 100 sq microns
+    # "Entire Cell Axis Ratio"  # no norming necessary
+]
+# some channels need to be normalized by dividing through a given constant number
+colNormalisation: [
+    1.,
+    1.,
+    1.,
+    1.,
+    1.,
+    1.,
+    # 1.,
+    # 100.,  # norm nucleus area (sq microns) to 100 sq microns
+    # 100.,  # norm cell area (sq microns) to 100 sq microns
+    # 1.
+]
+
+colListNewNames: [
+    "Entire Cell CD3 (Opal 520) Mean",
+    "Entire Cell PD-L1 (Opal 540) Mean",
+    "Entire Cell CD8 (Opal 570) Mean",
+    "Entire Cell FoxP3 (Opal 620) Mean",
+    "Entire Cell CD45Ro (Opal 650) Mean",
+    "Entire Cell Her2 (Opal 690) Mean",
+    # "Entire Cell DAPI (DAPI) Mean",
+    # "Nucleus Area (100 sq microns)",  # norm to 100 sq microns
+    # "Entire Cell Area (100 sq microns)",  # norm to 100 sq microns
+    # "Entire Cell Axis Ratio"  # no norming necessary
+]
+knn: 5
+max_edge_length: 25
+path_col: 'cellSegFile'
+class_col: 'fiveYearRelapse'
+metadata_train: '/media/data1/DATA/2.51_FUSION/DigitalPathology/cell2grid/FUSION_asfa_20181024_NEW/metaData_train.csv'
+metadata_test: '/media/data1/DATA/2.51_FUSION/DigitalPathology/cell2grid/FUSION_asfa_20181024_NEW/metaData_test.csv'
