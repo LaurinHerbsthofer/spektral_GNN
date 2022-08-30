@@ -1,15 +1,28 @@
 # settings for cell_graph_GNN.py
 
-developmentrun: True
+# settings for development only
+developmentrun: False
+load_n_rows: 20  # opnly for developmentrun=True
+n_classes: 2  # opnly for developmentrun=True
+verbosity: 1
+
+# general settings
 outfolder: '/media/data1/DATA/GNN_EXPERIMENTS'
 tmpGraphDataFile_tr_va: "/media/data1/DATA/GNN_EXPERIMENTS/graphdata_tr_va.tmp"
 tmpGraphDataFile_te: "/media/data1/DATA/GNN_EXPERIMENTS/graphdata_te.tmp"
+val_set_fraction: 0.3  # validation set split
 
+# model settings
 learning_rate: 0.01  # Learning rate
 epochs: 400  # Number of training epochs
 es_patience: 10  # Patience for early stopping
 batch_size: 32  # Batch size
 
+# data settings
+path_col: 'cellSegFile'
+class_col: 'fiveYearRelapse'
+metadata_train: '/media/data1/DATA/2.51_FUSION/DigitalPathology/cell2grid/FUSION_asfa_20181024_NEW/metaData_train.csv'
+metadata_test: '/media/data1/DATA/2.51_FUSION/DigitalPathology/cell2grid/FUSION_asfa_20181024_NEW/metaData_test.csv'
 micronsPerPixel: 0.50171
 colList: [
     "Entire Cell CD3 (Opal 520) Mean",
@@ -49,9 +62,7 @@ colListNewNames: [
     # "Entire Cell Area (100 sq microns)",  # norm to 100 sq microns
     # "Entire Cell Axis Ratio"  # no norming necessary
 ]
-knn: 5
-max_edge_length: 25
-path_col: 'cellSegFile'
-class_col: 'fiveYearRelapse'
-metadata_train: '/media/data1/DATA/2.51_FUSION/DigitalPathology/cell2grid/FUSION_asfa_20181024_NEW/metaData_train.csv'
-metadata_test: '/media/data1/DATA/2.51_FUSION/DigitalPathology/cell2grid/FUSION_asfa_20181024_NEW/metaData_test.csv'
+
+# graph settings
+knn: 5  # k-nearest-neighbors
+max_edge_length: 25  # maximum edge length in µm, edges longer than this are removed

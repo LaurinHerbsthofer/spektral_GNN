@@ -338,7 +338,7 @@ class cellGraphDataset(Dataset):
 
     def __init__(self, metadatafile=None, path_col='cellSegFile', class_col='fiveYearRelapse',
                  micronsPerPixel=None, colList=None, colNormalisation=None, colListNewNames=None,
-                 knn=5, max_edge_length=None, load_n_rows=None, n_classes=None, **kwargs):
+                 knn=5, max_edge_length=None, load_n_rows=None, n_classes=None, verbosity=1, **kwargs):
         self.path_col = path_col
         self.class_col = class_col
         self.colList = colList
@@ -346,6 +346,7 @@ class cellGraphDataset(Dataset):
         self.colListNewNames = colListNewNames
         self.micronsPerPixel = micronsPerPixel
         self.load_n_rows = load_n_rows  # use this for development and testing to only load a few data rows
+        self.verbosity = verbosity
 
         self.metadata = pd.read_csv(metadatafile, sep=";", usecols=[self.path_col, self.class_col], nrows=self.load_n_rows)  # [dev: nrows=5], a csv file containing sample paths and clinical data
         self.metadata[self.path_col] = [x.replace('/home/laurin/data0/', '/media/data1/DATA/') for x in self.metadata[self.path_col]]
@@ -360,8 +361,9 @@ class cellGraphDataset(Dataset):
 
 
     def read(self):
-        def make_graph(path, classlabel):
-            print("Loading data for sample {}".format(os.path.basename(path)))
+        def make_graph(path, classlabel, i, n_total):
+            if self.verbosity >= 1:
+                print("({}/{}) Loading data for sample: {}".format(i+1, n_total, os.path.basename(path)))
             t0 = time.time()
             df = loadCellSegData(path, self.colList, self.micronsPerPixel,
                                  colListNewNames=self.colListNewNames,
@@ -372,8 +374,9 @@ class cellGraphDataset(Dataset):
             x = np.array(df[self.colListNewNames])
 
             # Edges (without weights) represented as adjacency matrix
-            print(" > Nodes loaded: {}".format(n))
-            print(" > Creating graph and pruning edges...")
+            if self.verbosity >= 2:
+                print(" > Nodes loaded: {}".format(n))
+                print(" > Creating graph and pruning edges...")
             a = kneighbors_graph(df[['X', 'Y']], self.knn)
             # this is somehow not reliable
             # n_edges_orig = int(a.count_nonzero() / 2)  #
@@ -406,7 +409,8 @@ class cellGraphDataset(Dataset):
             # # NEW VERSION: faster
             G = nx.to_networkx_graph(a)
             n_edges_orig = len(G.edges())
-            print(" > Original knn edges: {}".format(n_edges_orig))
+            if self.verbosity >= 2:
+                print(" > Original knn edges: {}".format(n_edges_orig))
             # specify the node positions
             positions_dict = {k: (x, y) for k, x, y in zip(list(G.nodes()), df['X'], df['Y'])}
             nx.set_node_attributes(G, positions_dict, name='pos')  # set positions
@@ -414,9 +418,11 @@ class cellGraphDataset(Dataset):
                 nx.set_node_attributes(G, {k: t for k, t in zip(list(G.nodes()), df[col])}, name=col)
             G = assignEdgeLenghts(G)
             G = pruneEdges(G, maxlength=self.max_edge_length)
-            print(" > Pruned eges: {}".format(n_edges_orig-len(G.edges())))
+            if self.verbosity >= 2:
+                print(" > Pruned eges: {}".format(n_edges_orig-len(G.edges())))
             n_edges = a.count_nonzero()
-            print(" > Remaining edges: {}".format(len(G.edges())))
+            if self.verbosity >= 2:
+                print(" > Remaining edges: {}".format(len(G.edges())))
             a = nx.adjacency_matrix(G)
             a = sp.csr_matrix(a)
             # e = nx.adjacency_matrix(G, weight='length')  # note that the edge weight for the graph should be some form of inverse of the length
@@ -432,13 +438,62 @@ class cellGraphDataset(Dataset):
             # y[np.argmax(color_counts)] = 1
             y[int(classlabel)] = 1
             t1 = time.time()
-            print(" > Creating graphs took {:.3f}s".format(t1 - t0))
+            if self.verbosity >= 2:
+                print(" > Creating graphs took {:.3f}s".format(t1 - t0))
             return Graph(x=x, a=a, e=None, y=y)
 
         # We must return a list of Graph objects
         t0 = time.time()
-        graph_list = [make_graph(path, label) for path, label in zip(self.metadata[self.path_col], self.metadata[self.class_col])]
+        graph_list = [make_graph(path, label, i, len(self.metadata)) for i, (path, label) in enumerate(zip(self.metadata[self.path_col], self.metadata[self.class_col]))]
         t1 = time.time()
         print("Creating all graphs took {:.3f}s".format(t1 - t0))
         return graph_list
 
+
+def plotTrainHistory(history, outfolder, historyKeys=['loss', 'acc']):
+    '''
+
+    @param train_history:
+    @param dataVars:
+    @param historyKeys: ['loss', 'acc', 'balacc', 'f1score', 'precision', 'recall', 'mcor']
+    @return:
+    '''
+    '''
+    plot the relevant variables from the keras training history
+    adds moving average and error estimate for val set for final state
+    '''
+    df = pd.DataFrame(history)
+    windowsize = max(10, len(df) // 10)  # make windowsize 10 percent of epochs, limit windowsize to be no smaller than 10
+    flat_epochs = max(10, len(df) // 10)  # take last 10 percent as region to average over, limit to be no smaller than 10
+    stats = {}
+
+    for k in historyKeys:
+        plt.figure(figsize=(6, 6))
+
+        # train set
+        rolling_mean = df[k].rolling(window=windowsize, center=True, win_type='triang').mean()
+        df_flat = df[k][len(df) - flat_epochs:len(df)]
+        avg = df_flat.mean()
+        std = df_flat.std()
+        plt.plot(df.index.astype(int), df[k], color='steelblue', alpha=0.5, label=k)
+        plt.plot(df.index.astype(int), rolling_mean, color='steelblue', label=k + ' AVG')
+
+        # val set
+        kval = 'val_' + k
+        rolling_mean = df[kval].rolling(window=windowsize, center=True, win_type='triang').mean()
+        df_flat = df[kval][len(df) - flat_epochs:len(df)]
+        avg = df_flat.mean()
+        std = df_flat.std()
+        plt.plot(df.index.astype(int), df[kval], color='darkred', alpha=0.5, label=kval)
+        plt.plot(df.index.astype(int), rolling_mean, color='darkred', label=kval + ' AVG')
+
+        plt.ylabel(k)
+        plt.xlabel('epoch')
+        plt.legend(loc='best')
+        plt.title("{0} AVG last {1} epochs: {2:0.3f} +/- {3:0.3f}".format(kval, flat_epochs, avg,
+                                                                          std))  # rolling_mean[-int(np.ceil(windowsize/2))
+        plt.savefig(os.path.join(outfolder, k + '.png'))
+        stats[kval + '_mean_last_epochs'] = avg
+        stats[kval + '_std_last_epochs'] = std
+
+    return stats

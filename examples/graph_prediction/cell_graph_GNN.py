@@ -18,18 +18,19 @@ the corresponding target will be [1, 0].
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=UserWarning)
 
 import tensorflow as tf
-from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.losses import CategoricalCrossentropy
 from tensorflow.keras.metrics import categorical_accuracy
 from tensorflow.keras.optimizers import Adam
 
-from custom_data_load_functions import *
+from cell_graph_functions import *
 import pickle
 import yaml
 import datetime
 import json
+from sklearn.metrics import balanced_accuracy_score
 
 from spektral.models import GeneralGNN
 from spektral.data import DisjointLoader
@@ -45,14 +46,14 @@ with open('settings.yaml') as file:
     os.makedirs(outfolder)
     if settings['developmentrun']:
         always_load_data_anew = True  # [dev: True]
-        load_n_rows = 10
-        n_classes = 2
+        load_n_rows = settings['load_n_rows']
+        n_classes = settings['n_classes']
     else:
         always_load_data_anew = False
         load_n_rows = None
         n_classes = None
 
-t00 = time.time()
+t0 = time.time()
 if os.path.exists(settings['tmpGraphDataFile_tr_va']) and os.path.exists(settings['tmpGraphDataFile_te']) and always_load_data_anew is False:
     print("Loading graph data set from file ...")
     data_existed = True
@@ -62,7 +63,7 @@ if os.path.exists(settings['tmpGraphDataFile_tr_va']) and os.path.exists(setting
         data_te = pickle.load(open(settings['tmpGraphDataFile_te'], "rb"))
         print(" > Loaded {} test samples.".format(len(data_te)))
     except:
-        assert False, "You might need to rebuild your graph data (delete the tmp file), possibly due to using a different python environment."
+        assert False, "You might need to rebuild your graph data (delete the tmp file). Probably you are using a different python environment or have renamed some functions etc."
 else:
     print("Creating graph data set ...")
     data_existed = False
@@ -77,6 +78,7 @@ else:
                                   micronsPerPixel=settings['micronsPerPixel'],
                                   knn=settings['knn'],
                                   max_edge_length=settings['max_edge_length'],
+                                  verbosity=settings['verbosity'],
                                   load_n_rows=load_n_rows,
                                   n_classes=n_classes)
     data_te = cellGraphDataset(metadatafile=settings['metadata_test'],
@@ -88,6 +90,7 @@ else:
                                micronsPerPixel=settings['micronsPerPixel'],
                                knn=settings['knn'],
                                max_edge_length=settings['max_edge_length'],
+                               verbosity=settings['verbosity'],
                                load_n_rows=load_n_rows,
                                n_classes=n_classes)
     if settings['developmentrun'] is False:
@@ -96,7 +99,7 @@ else:
 
 # Train/valid/test split
 idxs = np.random.permutation(len(data_tr_va))
-split_va = int(0.7 * len(data_tr_va))
+split_va = int((1. - settings['val_set_fraction']) * len(data_tr_va))
 idx_tr, idx_va = np.split(idxs, [split_va])
 data_tr = data_tr_va[idx_tr]
 data_va = data_tr_va[idx_va]
@@ -117,13 +120,15 @@ for la in np.unique(data_te.labels):
     labelcounts_te[la] = data_te.labels.count(la)
 print("Label counts test:", labelcounts_te)
 
-t11 = time.time()
-datapreptime = t11 - t00
+t1 = time.time()
+datapreptime = t1 - t0
 print("Data preparation took: {:.3f}".format(datapreptime))
 
 ################################################################################
 # Build model
 ################################################################################
+
+assert data_tr.n_labels <= 2, "Some code (especially for balanced accuracy) currently only works for binary classification!"
 
 # model = Net(n_labels=data_tr.n_labels)
 model = GeneralGNN(data_tr.n_labels, activation="softmax")
@@ -142,16 +147,22 @@ def train_step(inputs, target):
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     acc = tf.reduce_mean(categorical_accuracy(target, predictions))
-    return loss, acc
+    return (loss, acc), target, predictions
 
 
 def evaluate(loader):
     output = []
+    y_target = []
+    y_pred_bin = []
+    y_pred = []
     step = 0
     while step < loader.steps_per_epoch:
         step += 1
         inputs, target = loader.__next__()
+        y_target += [int(x) for x in np.argmax(target, axis=1)]  # list(target[:, 1])
         pred = model(inputs, training=False)
+        y_pred += [float(x) for x in pred[:,1]]  # prediction probability of the 1-class, works only for binary classification!
+        y_pred_bin += [int(x) for x in np.argmax(pred, axis=1)]  # [float(x) for x in pred[:, 1]]
         outs = (
             loss_fn(target, pred),  # loss
             tf.reduce_mean(categorical_accuracy(target, pred)),  # accuracy
@@ -160,7 +171,8 @@ def evaluate(loader):
         output.append(outs)
         if step == loader.steps_per_epoch:
             output = np.array(output)
-            return np.average(output[:, :-1], 0, weights=output[:, -1])
+            return np.average(output[:, :-1], 0, weights=output[:, -1]), y_target, y_pred_bin, y_pred
+
 
 history = {'epochnr': [], 'loss': [], 'acc': [], 'balacc': [], 'val_loss': [], 'val_acc': [], 'val_balacc': [], 'epochtime': []}
 epoch = step = 0
@@ -169,19 +181,23 @@ best_weights = None
 patience = settings['es_patience']
 results = []
 t00 = time.time()
+print("Start training...")
+t0 = time.time()  # start time for first epoch
 for batch in loader_tr:
-    t0 = time.time()
     step += 1
-    loss, acc = train_step(*batch)
-    balacc = 999
+    (loss, acc), y_target, y_pred = train_step(*batch)
+    y_target = np.argmax(y_target, axis=1).astype(int)
+    y_pred_bin = np.argmax(y_pred, axis=1).astype(int)
+    y_pred = np.array(y_pred)[:,1].tolist()  # works only for binary classificaiton!
+    balacc = balanced_accuracy_score(y_target, y_pred_bin)
     results.append((loss, acc))
     if step == loader_tr.steps_per_epoch:
         step = 0
         epoch += 1
 
         # Compute validation loss and accuracy
-        val_loss, val_acc = evaluate(loader_va)
-        val_balacc = 999
+        (val_loss, val_acc), y_target, y_pred_bin, y_pred = evaluate(loader_va)
+        val_balacc = balanced_accuracy_score(y_target, y_pred_bin)
         history['epochnr'] += [epoch]
         history['loss'] += [float(loss)]
         history['acc'] += [float(acc)]
@@ -189,10 +205,11 @@ for batch in loader_tr:
         history['val_loss'] += [val_loss]
         history['val_acc'] += [val_acc]
         history['val_balacc'] += [val_balacc]
-        t1 = time.time()
+        t1 = time.time()  # end time of epoch
         history['epochtime'] += [t1-t0]
         print("Ep. {} - Loss: {:.3f} - Acc: {:.3f} - Val loss: {:.3f} - Val acc: {:.3f} - Val balacc: {:.3f} - Time: {:.3f}s".format(
                 epoch, *np.mean(results, 0), val_loss, val_acc, val_balacc, t1-t0))
+
 
         # Check if loss improved for early stopping
         if val_loss < best_val_loss:
@@ -208,16 +225,22 @@ for batch in loader_tr:
                 print("Early stopping (best val_loss: {:.3f}, best val_acc: {:.3f}, best val_balacc: {:.3f})".format(best_val_loss, best_val_acc, best_val_balacc))
                 break
         results = []
+        t0 = time.time()  # start time of next epoch
 
 t11 = time.time()
 print("Total training time: {:.3f}s".format(t11-t00))
+
+
+# trainhistory = {key: history[key] for key in ['epochnr', 'loss', 'val_loss', 'acc', 'val_acc', 'balacc', 'val_balacc']}
+trainhistory = history
+plotTrainHistory(trainhistory, outfolder, historyKeys=['loss', 'acc', 'balacc'])
 
 ################################################################################
 # Evaluate model - validation set
 ################################################################################
 model.set_weights(best_weights)  # Load best model
-val_loss, val_acc = evaluate(loader_va)
-val_balacc = 999
+(val_loss, val_acc), y_val_target, y_val_pred_bin, y_val_pred = evaluate(loader_va)
+val_balacc = balanced_accuracy_score(y_val_target, y_val_pred_bin)
 print("Done. Validation loss: {:.3f}. Validation acc: {:.3f}. Validation balacc: {:.3f}".format(val_loss, val_acc, val_balacc))
 
 
@@ -225,8 +248,8 @@ print("Done. Validation loss: {:.3f}. Validation acc: {:.3f}. Validation balacc:
 # Evaluate model - test set
 ################################################################################
 model.set_weights(best_weights)  # Load best model
-test_loss, test_acc = evaluate(loader_te)
-test_balacc = 999
+(test_loss, test_acc), y_test_target, y_test_pred_bin, y_test_pred = evaluate(loader_te)
+test_balacc = balanced_accuracy_score(y_test_target, y_test_pred_bin)
 print("Done. Test loss: {:.3f}. Test acc: {:.3f}. Test balacc: {:.3f}".format(test_loss, test_acc, test_balacc))
 
 
@@ -239,12 +262,20 @@ history['total_trainingtime'] = "{:.3f}".format(t11-t00)
 history['best_val_loss'] = val_loss
 history['best_val_acc'] = val_acc
 history['best_val_balacc'] = val_balacc
+history['best_val_y_target'] = y_val_target
+history['best_val_y_pred_bin'] = y_val_pred_bin
+history['best_val_y_pred'] = y_val_pred
 history['best_test_loss'] = test_loss
 history['best_test_acc'] = test_acc
 history['best_test_balacc'] = test_balacc
-with open(os.path.join(outfolder, "history.txt"), "w") as file:
+history['best_test_y_target'] = y_test_target
+history['best_test_y_pred_bin'] = y_test_pred_bin
+history['best_test_y_pred'] = y_test_pred
+with open(os.path.join(outfolder, "history.json"), "w") as file:
     file.write(json.dumps(history))
+with open(os.path.join(outfolder, "settings.json"), "w") as file:
+    file.write(json.dumps(settings))
 pickle.dump(best_weights, open(os.path.join(outfolder, "best_model_weights.pickle"), "wb"))
 
-print("+++++++++\nAll done.\n+++++++++")
+print("\n+++++++++\nAll done.\n+++++++++")
 
