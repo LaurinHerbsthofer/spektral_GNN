@@ -497,3 +497,6 @@ def plotTrainHistory(history, outfolder, historyKeys=['loss', 'acc']):
         stats[kval + '_std_last_epochs'] = std
 
     return stats
+
+
+

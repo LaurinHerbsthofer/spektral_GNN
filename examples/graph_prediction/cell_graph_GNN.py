@@ -1,19 +1,24 @@
 """
-This example shows how to define your own dataset and use it to train a
-non-trivial GNN with message-passing and pooling layers.
-The script also shows how to implement fast training and evaluation functions
-in disjoint mode, with early stopping and accuracy monitoring.
+This code is based on the custom_dataset.py example provided by spektral. I updated it by using our custom data loader
+that loads cell segmentation data, transforms it into a cell graph using kNN with maximum edge length and uses the
+GeneralGNN model proposed by [Design Space for Graph Neural Networks](https://arxiv.org/abs/2011.08843)
 
-The dataset that we create is a simple synthetic task in which we have random
-graphs with randomly-colored nodes. The goal is to classify each graph with the
-color that occurs the most on its nodes. For example, given a graph with 2
-colors and 3 nodes:
+We use metadata files for the input data seperately for training and test sets to control what goes onto the test set.
+Validation splits are random within the test set.
 
-x = [[1, 0],
-     [1, 0],
-     [0, 1]],
+We use pickle to save and load the data set after it's converted to graphs to massivle save data loading times if the model
+is rerun multiple times. Make sure to delete these temporary binary files if you want to create the data again from scratch
+or with different parameters!
 
-the corresponding target will be [1, 0].
+All settings are specified in the settings.yaml file which also offers a "developmentrun" option that loads only a small
+number of samples.
+
+Note that the current version of this code only supports binary classification since some balanced accuracy
+calculations are not implemented in a more general way than the 2-class problem.
+
+Launch this code from the "venv" virtualenv within this project to run it on the CPU. However, this code can also be
+launched from the C2G virtualenv "venvTF24" for GPU support, but using the GeneralGNN model likely requires
+an update to sklearn (or scipy). I did not yet do this to avoid breaking the venvTF24 that is used for other C2G classifiers
 """
 
 import warnings
@@ -131,7 +136,19 @@ print("Data preparation took: {:.3f}".format(datapreptime))
 assert data_tr.n_labels <= 2, "Some code (especially for balanced accuracy) currently only works for binary classification!"
 
 # model = Net(n_labels=data_tr.n_labels)
-model = GeneralGNN(data_tr.n_labels, activation="softmax")
+model = GeneralGNN(data_tr.n_labels,
+                   activation=settings['activation'],
+                   hidden=settings['hidden'],
+                   message_passing=settings['message_passing'],
+                   pre_process=settings['pre_process'],
+                   post_process=settings['post_process'],
+                   connectivity=settings['connectivity'],
+                   batch_norm=settings['batch_norm'],
+                   dropout=settings['dropout'],
+                   aggregate=settings['aggregate'],
+                   hidden_activation=settings['hidden_activation'],
+                   pool=settings['pool']
+                   )
 optimizer = Adam(lr=settings['learning_rate'])
 loss_fn = CategoricalCrossentropy()
 
