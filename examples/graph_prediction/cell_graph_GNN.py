@@ -102,6 +102,17 @@ else:
         pickle.dump(data_tr_va, open(settings['tmpGraphDataFile_tr_va'], "wb"))
         pickle.dump(data_te, open(settings['tmpGraphDataFile_te'], "wb"))
 
+# THIS DOES NOT WORK ON SUBSETS AS THE .labels WILL NOT CHANGE!
+labelcounts_tr_va = {}
+for la in np.unique(data_tr_va.labels):
+    labelcounts_tr_va[la] = data_tr_va.labels.count(la)
+print(" > Label counts training+validation:", labelcounts_tr_va)
+
+labelcounts_te = {}
+for la in np.unique(data_te.labels):
+    labelcounts_te[la] = data_te.labels.count(la)
+print(" > Label counts test:", labelcounts_te)
+
 # Train/valid/test split
 idxs = np.random.permutation(len(data_tr_va))
 split_va = int((1. - settings['val_set_fraction']) * len(data_tr_va))
@@ -115,19 +126,9 @@ loader_tr = DisjointLoader(data_tr, batch_size=settings['batch_size'], epochs=se
 loader_va = DisjointLoader(data_va, batch_size=settings['batch_size'])
 loader_te = DisjointLoader(data_te, batch_size=settings['batch_size'])
 
-labelcounts_va = {}
-for la in np.unique(data_va.labels):
-    labelcounts_va[la] = data_va.labels.count(la)
-print("Label counts validation:", labelcounts_va)
-
-labelcounts_te = {}
-for la in np.unique(data_te.labels):
-    labelcounts_te[la] = data_te.labels.count(la)
-print("Label counts test:", labelcounts_te)
-
 t1 = time.time()
 datapreptime = t1 - t0
-print("Data preparation took: {:.3f}".format(datapreptime))
+print(" > Data preparation took: {:.3f}\n".format(datapreptime))
 
 ################################################################################
 # Build model
@@ -192,26 +193,37 @@ def evaluate(loader):
 
 
 history = {'epochnr': [], 'loss': [], 'acc': [], 'balacc': [], 'val_loss': [], 'val_acc': [], 'val_balacc': [], 'epochtime': []}
-epoch = step = 0
+epoch = 1
+step = 0
 best_val_loss = np.inf
 best_weights = None
 patience = settings['es_patience']
 results = []
 t00 = time.time()
-print("Start training...")
-t0 = time.time()  # start time for first epoch
+print("\n+++++++++++++++\nStart training:\n+++++++++++++++\n")
+epochbegintime = time.time()
 for batch in loader_tr:
+    timesinceepochstart = time.time() - epochbegintime
     step += 1
+    remaining_steps = loader_tr.steps_per_epoch - step
+    if step == 1:
+        ETA = None
+        print(" > Epoch {} - step {}/{} ...".format(epoch, step, loader_tr.steps_per_epoch), end='\r')
+    else:
+        ETA = remaining_steps * timesinceepochstart / (step-1)
+        print(" > Epoch {} - step {}/{} (step time: {:.1f}s, ETA: {}s) ...".format(epoch, step, loader_tr.steps_per_epoch, laststeptime, int(ETA)), end='\r')
+
+    t0step = time.time()
     (loss, acc), y_target, y_pred = train_step(*batch)
     y_target = np.argmax(y_target, axis=1).astype(int)
     y_pred_bin = np.argmax(y_pred, axis=1).astype(int)
     y_pred = np.array(y_pred)[:,1].tolist()  # works only for binary classificaiton!
     balacc = balanced_accuracy_score(y_target, y_pred_bin)
     results.append((loss, acc))
+    t1step = time.time()
+    laststeptime = t1step - t0step
     if step == loader_tr.steps_per_epoch:
-        step = 0
-        epoch += 1
-
+        print(" > Evaluating validation set ................................................", end='\r')  # adding dots to overwrite previous line
         # Compute validation loss and accuracy
         (val_loss, val_acc), y_target, y_pred_bin, y_pred = evaluate(loader_va)
         val_balacc = balanced_accuracy_score(y_target, y_pred_bin)
@@ -222,11 +234,10 @@ for batch in loader_tr:
         history['val_loss'] += [val_loss]
         history['val_acc'] += [val_acc]
         history['val_balacc'] += [val_balacc]
-        t1 = time.time()  # end time of epoch
-        history['epochtime'] += [t1-t0]
+        epochendtime = time.time()  # end time of epoch
+        history['epochtime'] += [epochendtime-epochbegintime]
         print("Ep. {} - Loss: {:.3f} - Acc: {:.3f} - Val loss: {:.3f} - Val acc: {:.3f} - Val balacc: {:.3f} - Time: {:.3f}s".format(
-                epoch, *np.mean(results, 0), val_loss, val_acc, val_balacc, t1-t0))
-
+                epoch, *np.mean(results, 0), val_loss, val_acc, val_balacc, epochendtime-epochbegintime))
 
         # Check if loss improved for early stopping
         if val_loss < best_val_loss:
@@ -242,7 +253,11 @@ for batch in loader_tr:
                 print("Early stopping (best val_loss: {:.3f}, best val_acc: {:.3f}, best val_balacc: {:.3f})".format(best_val_loss, best_val_acc, best_val_balacc))
                 break
         results = []
-        t0 = time.time()  # start time of next epoch
+
+        # advance to next epoch
+        step = 0
+        epoch += 1
+        epochbegintime = time.time()
 
 t11 = time.time()
 print("Total training time: {:.3f}s".format(t11-t00))
