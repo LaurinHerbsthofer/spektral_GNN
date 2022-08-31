@@ -200,7 +200,7 @@ best_weights = None
 patience = settings['es_patience']
 results = []
 t00 = time.time()
-print("\n+++++++++++++++\nStart training:\n+++++++++++++++\n")
+print("\n++++++++++++++\nStart training\n++++++++++++++\n")
 epochbegintime = time.time()
 for batch in loader_tr:
     timesinceepochstart = time.time() - epochbegintime
@@ -208,10 +208,10 @@ for batch in loader_tr:
     remaining_steps = loader_tr.steps_per_epoch - step
     if step == 1:
         ETA = None
-        print(" > Epoch {} - step {}/{} ...".format(epoch, step, loader_tr.steps_per_epoch), end='\r')
+        print("Epoch {} - Step {}/{} ...".format(epoch, step, loader_tr.steps_per_epoch), end='\r')
     else:
         ETA = remaining_steps * timesinceepochstart / (step-1)
-        print(" > Epoch {} - step {}/{} (step time: {:.1f}s, ETA: {}s) ...".format(epoch, step, loader_tr.steps_per_epoch, laststeptime, int(ETA)), end='\r')
+        print("Epoch {} - Step {}/{} - Step time: {:.1f}s - ETA: {}s ...".format(epoch, step, loader_tr.steps_per_epoch, laststeptime, int(ETA)), end='\r')
 
     t0step = time.time()
     (loss, acc), y_target, y_pred = train_step(*batch)
@@ -223,7 +223,7 @@ for batch in loader_tr:
     t1step = time.time()
     laststeptime = t1step - t0step
     if step == loader_tr.steps_per_epoch:
-        print(" > Evaluating validation set ................................................", end='\r')  # adding dots to overwrite previous line
+        print("Epoch {} - Evaluating validation set ................................................".format(epoch), end='\r')
         # Compute validation loss and accuracy
         (val_loss, val_acc), y_target, y_pred_bin, y_pred = evaluate(loader_va)
         val_balacc = balanced_accuracy_score(y_target, y_pred_bin)
@@ -236,7 +236,7 @@ for batch in loader_tr:
         history['val_balacc'] += [val_balacc]
         epochendtime = time.time()  # end time of epoch
         history['epochtime'] += [epochendtime-epochbegintime]
-        print("Ep. {} - Loss: {:.3f} - Acc: {:.3f} - Val loss: {:.3f} - Val acc: {:.3f} - Val balacc: {:.3f} - Time: {:.3f}s".format(
+        print("Epoch {} - Loss: {:.3f} - Acc: {:.3f} - Val loss: {:.3f} - Val acc: {:.3f} - Val balacc: {:.3f} - Time: {:.3f}s".format(
                 epoch, *np.mean(results, 0), val_loss, val_acc, val_balacc, epochendtime-epochbegintime))
 
         # Check if loss improved for early stopping
@@ -245,12 +245,12 @@ for batch in loader_tr:
             best_val_acc = val_acc
             best_val_balacc = val_balacc
             patience = settings['es_patience']
-            print("New best val_loss {:.3f}".format(val_loss))
+            print(" > New best val_loss {:.3f}".format(val_loss))
             best_weights = model.get_weights()
         else:
             patience -= 1
             if patience == 0:
-                print("Early stopping (best val_loss: {:.3f}, best val_acc: {:.3f}, best val_balacc: {:.3f})".format(best_val_loss, best_val_acc, best_val_balacc))
+                print(" +++ Early stopping (best val_loss: {:.3f}, best val_acc: {:.3f}, best val_balacc: {:.3f})".format(best_val_loss, best_val_acc, best_val_balacc))
                 break
         results = []
 
