@@ -338,7 +338,8 @@ class cellGraphDataset(Dataset):
 
     def __init__(self, metadatafile=None, path_col='cellSegFile', class_col='fiveYearRelapse',
                  micronsPerPixel=None, colList=None, colNormalisation=None, colListNewNames=None,
-                 knn=5, max_edge_length=None, load_n_rows=None, n_classes=None, verbosity=1, **kwargs):
+                 knn=5, max_edge_length=None, load_n_rows=None, n_classes=None, verbosity=1,
+                 logfile=None, **kwargs):
         self.path_col = path_col
         self.class_col = class_col
         self.colList = colList
@@ -347,6 +348,7 @@ class cellGraphDataset(Dataset):
         self.micronsPerPixel = micronsPerPixel
         self.load_n_rows = load_n_rows  # use this for development and testing to only load a few data rows
         self.verbosity = verbosity
+        self.logfile = logfile
 
         self.metadata = pd.read_csv(metadatafile, sep=";", usecols=[self.path_col, self.class_col], nrows=self.load_n_rows)  # [dev: nrows=5], a csv file containing sample paths and clinical data
         self.metadata[self.path_col] = [x.replace('/home/laurin/data0/', '/media/data1/DATA/') for x in self.metadata[self.path_col]]
@@ -356,7 +358,7 @@ class cellGraphDataset(Dataset):
         self.n_samples = len(self.metadata)
         self.knn = knn  # how many edges each node should have
         self.max_edge_length = max_edge_length  # maximum allowed edge lengths
-
+        self.processingTime = []
         super().__init__(**kwargs)
 
 
@@ -440,6 +442,7 @@ class cellGraphDataset(Dataset):
             t1 = time.time()
             if self.verbosity >= 2:
                 print(" > Creating graphs took {:.3f}s".format(t1 - t0))
+            self.processingTime += [t1 - t0]
             return Graph(x=x, a=a, e=None, y=y)
 
         # We must return a list of Graph objects
@@ -447,6 +450,9 @@ class cellGraphDataset(Dataset):
         graph_list = [make_graph(path, label, i, len(self.metadata)) for i, (path, label) in enumerate(zip(self.metadata[self.path_col], self.metadata[self.class_col]))]
         t1 = time.time()
         print("Creating all graphs took {:.3f}s".format(t1 - t0))
+        df = pd.DataFrame({'image': self.metadata[self.path_col],
+                           'processingTime': self.processingTime})
+        df.to_csv(self.logfile, sep=";")
         return graph_list
 
 

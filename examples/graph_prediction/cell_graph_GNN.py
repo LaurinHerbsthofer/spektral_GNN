@@ -47,7 +47,7 @@ from spektral.data import DisjointLoader
 with open('settings.yaml') as file:
     settings = yaml.load(file, Loader=yaml.FullLoader)
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    outfolder = os.path.join(settings['outfolder'], timestamp)
+    outfolder = os.path.join(settings['outfolder'], timestamp + "_" + settings['modelrun_name'])
     os.makedirs(outfolder)
     if settings['developmentrun']:
         always_load_data_anew = True  # [dev: True]
@@ -85,7 +85,8 @@ else:
                                   max_edge_length=settings['max_edge_length'],
                                   verbosity=settings['verbosity'],
                                   load_n_rows=load_n_rows,
-                                  n_classes=n_classes)
+                                  n_classes=n_classes,
+                                  logfile=os.path.join(outfolder, "graph_log_tr_va.csv"))
     data_te = cellGraphDataset(metadatafile=settings['metadata_test'],
                                path_col=settings['path_col'],
                                class_col=settings['class_col'],
@@ -97,10 +98,12 @@ else:
                                max_edge_length=settings['max_edge_length'],
                                verbosity=settings['verbosity'],
                                load_n_rows=load_n_rows,
-                               n_classes=n_classes)
+                               n_classes=n_classes,
+                               logfile=os.path.join(outfolder, "graph_log_te.csv"))
     if settings['developmentrun'] is False:
         pickle.dump(data_tr_va, open(settings['tmpGraphDataFile_tr_va'], "wb"))
         pickle.dump(data_te, open(settings['tmpGraphDataFile_te'], "wb"))
+
 
 # THIS DOES NOT WORK ON SUBSETS AS THE .labels WILL NOT CHANGE!
 labelcounts_tr_va = {}
@@ -309,5 +312,5 @@ with open(os.path.join(outfolder, "settings.json"), "w") as file:
     file.write(json.dumps(settings))
 pickle.dump(best_weights, open(os.path.join(outfolder, "best_model_weights.pickle"), "wb"))
 
-print("\n+++++++++\nAll done.\n+++++++++")
+print("\n+++++++++\nAll done.\n+++++++++\n")
 

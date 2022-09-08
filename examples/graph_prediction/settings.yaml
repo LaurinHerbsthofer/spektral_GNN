@@ -1,37 +1,82 @@
 # settings for cell_graph_GNN.py
 
-# settings for development only
+# settings for development only --------------------------------
 developmentrun: False
 load_n_rows: 10  # opnly for developmentrun=True
 n_classes: 2  # opnly for developmentrun=True
 verbosity: 1
 
-# general settings
+# general settings --------------------------------
 outfolder: '/media/data1/DATA/GNN_EXPERIMENTS'
 tmpGraphDataFile_tr_va: "/media/data1/DATA/GNN_EXPERIMENTS/graphdata_tr_va.tmp"
 tmpGraphDataFile_te: "/media/data1/DATA/GNN_EXPERIMENTS/graphdata_te.tmp"
 
-# training settings
+# training settings --------------------------------
 val_set_fraction: 0.3  # validation set split
-learning_rate: 0.005  # 0.01 Learning rate
-epochs: 400  # 400 Number of training epochs
-es_patience: 10  # 10 Patience for early stopping, consider using a slightly higher value
-batch_size: 16  # 32 Batch size
+learning_rate: 0.0001  # 0.01 Learning rate
+epochs: 1000  # 400 Number of training epochs
+es_patience: 100  # 10 Patience for early stopping, consider using a slightly higher value
+batch_size: 32  # 32 Batch size
 
-# GNN model settings
+# GNN model settings --------------------------------
+
+# original from spektral repository
+#modelrun_name: "spektral_default_GNN"
+#activation: "softmax"  # softmax
+#hidden: 256  # 256
+#message_passing: 4  # 4
+#pre_process: 2  # 2
+#post_process: 2  # 2
+#connectivity: "cat"  # cat, sum
+#batch_norm: True  # True
+#dropout: 0.0  # 0.0
+#aggregate: "sum"  # sum
+#hidden_activation: "prelu"  # prelu
+#pool: "sum"  # sum
+
+# best from the paper for graph classification
+#modelrun_name: "best_GNN_settings_of_paper"
+#activation: "softmax"  # softmax
+#hidden: 256  # 256
+#message_passing: 8  # 4
+#pre_process: 2  # 2
+#post_process: 2  # 2
+#connectivity: "sum"  # cat, sum
+#batch_norm: True  # True
+#dropout: 0.0  # 0.0
+#aggregate: "sum"  # sum
+#hidden_activation: "prelu"  # prelu
+#pool: "sum"  # sum
+
+# best from the paper for graph classification
+#modelrun_name: "best_GNN_scalefreeconstpath_30patience"
+#activation: "softmax"  # softmax
+#hidden: 256  # 256
+#message_passing: 8  # 4
+#pre_process: 1  # 2
+#post_process: 3  # 2
+#connectivity: "cat"  # cat, sum
+#batch_norm: True  # True
+#dropout: 0.0  # 0.0
+#aggregate: "sum"  # sum
+#hidden_activation: "prelu"  # prelu
+#pool: "sum"  # sum
+
+# trying to improve the best model from the paper
+modelrun_name: "best_GNN_improved"
 activation: "softmax"  # softmax
 hidden: 256  # 256
-message_passing: 4  # 4
-pre_process: 2  # 2
-post_process: 2  # 2
+message_passing: 8  # 4
+pre_process: 1  # 2
+post_process: 3  # 2
 connectivity: "cat"  # cat, sum
 batch_norm: True  # True
-dropout: 0.0  # 0.0
+dropout: 0.2  # 0.0
 aggregate: "sum"  # sum
 hidden_activation: "prelu"  # prelu
 pool: "sum"  # sum
 
-# data settings
+# data settings --------------------------------
 path_col: 'cellSegFile'
 class_col: 'fiveYearRelapse'
 metadata_train: '/media/data1/DATA/2.51_FUSION/DigitalPathology/cell2grid/FUSION_asfa_20181024_NEW/metaData_train.csv'
@@ -76,6 +121,6 @@ colListNewNames: [
     # "Entire Cell Axis Ratio"  # no norming necessary
 ]
 
-# graph settings
+# graph settings --------------------------------
 knn: 5  # k-nearest-neighbors
 max_edge_length: 25  # maximum edge length in µm, edges longer than this are removed
