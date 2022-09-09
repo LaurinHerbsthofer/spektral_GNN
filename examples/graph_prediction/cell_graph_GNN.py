@@ -58,6 +58,10 @@ with open('settings.yaml') as file:
         load_n_rows = None
         n_classes = None
 
+# write the settings immediately and overwrite them once the script has finished
+with open(os.path.join(outfolder, "settings.json"), "w") as file:
+    file.write(json.dumps(settings))
+
 t0 = time.time()
 if os.path.exists(settings['tmpGraphDataFile_tr_va']) and os.path.exists(settings['tmpGraphDataFile_te']) and always_load_data_anew is False:
     print("Loading graph data set from file ...")
@@ -198,7 +202,8 @@ def evaluate(loader):
 history = {'epochnr': [], 'loss': [], 'acc': [], 'balacc': [], 'val_loss': [], 'val_acc': [], 'val_balacc': [], 'epochtime': []}
 epoch = 1
 step = 0
-best_val_loss = np.inf
+# best_val_loss = np.inf
+best_val_balacc = -np.inf
 best_weights = None
 patience = settings['es_patience']
 results = []
@@ -243,13 +248,16 @@ for batch in loader_tr:
                 epoch, *np.mean(results, 0), val_loss, val_acc, val_balacc, epochendtime-epochbegintime))
 
         # Check if loss improved for early stopping
-        if val_loss < best_val_loss:
+        # if val_loss < best_val_loss:
+        if val_balacc > best_val_balacc:
             best_val_loss = val_loss
             best_val_acc = val_acc
             best_val_balacc = val_balacc
             patience = settings['es_patience']
-            print(" > New best val_loss {:.3f}".format(val_loss))
+            # print(" > New best val_loss {:.3f}".format(val_loss))
+            print(" > New best val_balacc {:.3f}".format(val_balacc))
             best_weights = model.get_weights()
+            pickle.dump(best_weights, open(os.path.join(outfolder, "best_model_weights.pickle"), "wb"))
         else:
             patience -= 1
             if patience == 0:
@@ -306,11 +314,11 @@ history['best_test_balacc'] = test_balacc
 history['best_test_y_target'] = y_test_target
 history['best_test_y_pred_bin'] = y_test_pred_bin
 history['best_test_y_pred'] = y_test_pred
+
 with open(os.path.join(outfolder, "history.json"), "w") as file:
     file.write(json.dumps(history))
 with open(os.path.join(outfolder, "settings.json"), "w") as file:
     file.write(json.dumps(settings))
-pickle.dump(best_weights, open(os.path.join(outfolder, "best_model_weights.pickle"), "wb"))
 
 print("\n+++++++++\nAll done.\n+++++++++\n")
 
