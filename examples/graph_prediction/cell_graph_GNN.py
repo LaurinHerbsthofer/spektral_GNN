@@ -225,7 +225,7 @@ for batch in loader_tr:
     (loss, acc), y_target, y_pred = train_step(*batch)
     y_target = np.argmax(y_target, axis=1).astype(int)
     y_pred_bin = np.argmax(y_pred, axis=1).astype(int)
-    y_pred = np.array(y_pred)[:,1].tolist()  # works only for binary classificaiton!
+    y_pred = np.array(y_pred)[:, 1].tolist()  # works only for binary classificaiton!
     balacc = balanced_accuracy_score(y_target, y_pred_bin)
     results.append((loss, acc))
     t1step = time.time()
@@ -244,8 +244,11 @@ for batch in loader_tr:
         history['val_balacc'] += [val_balacc]
         epochendtime = time.time()  # end time of epoch
         history['epochtime'] += [epochendtime-epochbegintime]
-        print("Epoch {} - Loss: {:.3f} - Acc: {:.3f} - Val loss: {:.3f} - Val acc: {:.3f} - Val balacc: {:.3f} - Time: {:.3f}s".format(
-                epoch, *np.mean(results, 0), val_loss, val_acc, val_balacc, epochendtime-epochbegintime))
+        validation_report = "Epoch {} - Loss: {:.3f} - Acc: {:.3f} - Val loss: {:.3f} - Val acc: {:.3f} - Val balacc: {:.3f} - Time: {:.3f}s".format(
+                epoch, *np.mean(results, 0), val_loss, val_acc, val_balacc, epochendtime-epochbegintime)
+        print(validation_report)
+        with open(os.path.join(outfolder, "training_log.txt"), 'a') as f:
+            f.write(validation_report+'\n')
 
         # Check if loss improved for early stopping
         # if val_loss < best_val_loss:

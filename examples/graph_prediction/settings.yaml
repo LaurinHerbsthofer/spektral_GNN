@@ -13,7 +13,7 @@ tmpGraphDataFile_te: "/media/data1/DATA/GNN_EXPERIMENTS/graphdata_te.tmp"
 
 # training settings --------------------------------
 val_set_fraction: 0.3  # validation set split
-learning_rate: 0.001  # 0.01 Learning rate
+learning_rate: 0.0001  # 0.01 Learning rate
 epochs: 200  # 400 Number of training epochs
 es_patience: 20  # 10 Patience for early stopping, consider using a slightly higher value
 batch_size: 32  # 32 Batch size
@@ -63,32 +63,32 @@ batch_size: 32  # 32 Batch size
 #pool: "sum"  # sum
 
 # trying to improve the best model from the paper
-#modelrun_name: "best_GNN_improved"
-#activation: "softmax"  # softmax
-#hidden: 256  # 256
-#message_passing: 4  # 4
-#pre_process: 1  # 2
-#post_process: 3  # 2
-#connectivity: "cat"  # cat, sum
-#batch_norm: True  # True
-#dropout: 0.0  # 0.0
-#aggregate: "sum"  # sum
-#hidden_activation: "prelu"  # prelu
-#pool: "sum"  # sum
-
-# model improved for GPU
-modelrun_name: "best_GNN_improved_for_GPU"
+modelrun_name: "best_GNN_improved"
 activation: "softmax"  # softmax
-hidden: 180  # 256
-message_passing: 6  # 4
-pre_process: 2  # 2
+hidden: 256  # 256
+message_passing: 4  # 4
+pre_process: 1  # 2
 post_process: 3  # 2
-connectivity: "sum"  # cat, sum
+connectivity: "cat"  # cat, sum
 batch_norm: True  # True
 dropout: 0.0  # 0.0
 aggregate: "sum"  # sum
 hidden_activation: "prelu"  # prelu
 pool: "sum"  # sum
+
+# model improved for GPU
+#modelrun_name: "best_GNN_improved_for_GPU"
+#activation: "softmax"  # softmax
+#hidden: 180  # 256
+#message_passing: 4  # 4
+#pre_process: 2  # 2
+#post_process: 3  # 2
+#connectivity: "sum"  # cat, sum
+#batch_norm: True  # True
+#dropout: 0.0  # 0.0
+#aggregate: "sum"  # sum
+#hidden_activation: "prelu"  # prelu
+#pool: "sum"  # sum
 
 
 # data settings --------------------------------
